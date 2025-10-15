@@ -4,62 +4,62 @@
 #include <string.h>
 
 //private
-//LED GLOBALE (uno solo)
-typedef atomic_ushort gpio; //Questa riga crea un alias di tipo 
-//rappresenta una variabile atomica basata su un unsigned short.
-gpio emergency_led; //1 = acceso, 0 = spento.
+//GLOBAL LED (only one)
+typedef atomic_ushort gpio; //This line creates a type alias 
+//represents an atomic variable based on an unsigned short.
+gpio emergency_led; //1 = on, 0 = off.
 
 
 
 
 static struct{
-  atomic_flag lock; //serve come meccanismo di sincronizzazione minimale, chiamato anche spinlock. 
-  // può essere 0=libero, 1=occupato
-  uint8_t excepion_counter; //conta quante entità (nodi) hanno emergenze attive
-  uint8_t init_done:1; //flag 1 bit che segnala se il modulo è stato inizializzato.
-}EXCEPTION_COUNTER; //stato globale del modulo
+  atomic_flag lock; //serves as a minimal synchronization mechanism, also called spinlock. 
+  // can be 0=free, 1=busy
+  uint8_t excepion_counter; //counts how many entities (nodes) have active emergencies
+  uint8_t init_done:1; //1-bit flag that indicates if the module has been initialized.
+}EXCEPTION_COUNTER; //global module state
 
 
 
 
-//IMPOSTSA ACCESO IL LED
-static inline void _hw_raise_emergency(void) //sincronizzare l’accensione del led con le modifiche globali.
+//TURNS ON THE LED
+static inline void _hw_raise_emergency(void) //synchronize LED activation with global changes.
 {
-  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //controlla se il thread è occupato, in caso lo occupa settandolo a 1
-  atomic_store(&emergency_led, 1); //Imposta il led globale a 1 (accesо)
-  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //libera il thread settandolo a 0
+  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //checks if the thread is busy; if not, occupies it by setting it to 1
+  atomic_store(&emergency_led, 1); //Sets the global LED to 1 (on)
+  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //frees the thread by setting it to 0
 }
 
-//INCREMENTA IL COUNTER EMERGENZE
+//INCREASES THE EMERGENCY COUNTER
 static void _increase_global_emergency_counter(void) 
 {
-  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //controlla se il thread è occupato, in caso lo occupa settandolo a 1
-  EXCEPTION_COUNTER.excepion_counter++; // incrementa excepion_counter (numero di nodi con almeno 1 emergenza)
-  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //libera il thread settandolo a 0
+  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //checks if the thread is busy; if not, occupies it by setting it to 1
+  EXCEPTION_COUNTER.excepion_counter++; //increments excepion_counter (number of nodes with at least one emergency)
+  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //frees the thread by setting it to 0
 }
 
 static void _solved_module_exception_state(void)__attribute__((__unused__));
 
-//DECREMENTA IL COUNTER EMERGENZE
+//DECREASES THE EMERGENCY COUNTER
 static void _solved_module_exception_state(void)
 {
-  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //controlla se il thread è occupato, in caso lo occupa settandolo a 1
-  EXCEPTION_COUNTER.excepion_counter--; //decrementa excepion_counter.
-  if (!EXCEPTION_COUNTER.excepion_counter) //Se il contatore globale diventa 0 → spegne il led (emergency_led = 0).
+  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //checks if the thread is busy; if not, occupies it by setting it to 1
+  EXCEPTION_COUNTER.excepion_counter--; //decrements excepion_counter.
+  if (!EXCEPTION_COUNTER.excepion_counter) //If the global counter becomes 0 → turns off the LED (emergency_led = 0).
   {
-    atomic_store(&emergency_led, 0); //spegne il led globale = 0
+    atomic_store(&emergency_led, 0); //turns off the global LED = 0
   }
-  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //libera il thread settandolo a 0
+  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //frees the thread by setting it to 0
 }
 
 static uint8_t read_globla_emergency_couner(void)__attribute__((__unused__));
 
-//LEGGE in modo protetto IL VALORE DEL CONTATORE E LO RESTITUISCE
+//READS THE COUNTER IN A PROTECTED WAY AND RETURNS ITS VALUE
 static uint8_t read_globla_emergency_couner(void) 
 {
-  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //controlla se il thread è occupato, in caso lo occupa settandolo a 1
+  while (atomic_flag_test_and_set(&EXCEPTION_COUNTER.lock)); //checks if the thread is busy; if not, occupies it by setting it to 1
   const uint8_t res= EXCEPTION_COUNTER.excepion_counter; 
-  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //libera il thread settandolo a 0
+  atomic_flag_clear(&EXCEPTION_COUNTER.lock); //frees the thread by setting it to 0
 
   return res;
 }
@@ -71,74 +71,74 @@ static uint8_t read_globla_emergency_couner(void)
 
 
 //public
-// INIZIALIZZA
+// INITIALIZES
 int8_t EmergencyNode_class_init(void)
 {
-  if (EXCEPTION_COUNTER.init_done) //Se init_done è già 1 → ritorna -1 (già inizializzato).
+  if (EXCEPTION_COUNTER.init_done) //If init_done is already 1 → return -1 (already initialized).
   {
     return -1;
   }
-  atomic_store(&emergency_led, 0); //spegne il led
-  EXCEPTION_COUNTER.init_done=1; //setta init_done = 1
-  EXCEPTION_COUNTER.excepion_counter=0; //azzera il contatore globale
+  atomic_store(&emergency_led, 0); //turns off the LED
+  EXCEPTION_COUNTER.init_done=1; //sets init_done = 1
+  EXCEPTION_COUNTER.excepion_counter=0; //resets the global counter
 
   return 0;
 }
-// non inizializza EXCEPTION_COUNTER.lock (atomic_flag). 
-// In più non è thread-safe se due thread chiamano questa funzione contemporaneamente: 
-// due chiamate concorrenti possono passare il check init_done e sovrascrivere lo stato.
+// does not initialize EXCEPTION_COUNTER.lock (atomic_flag). 
+// Also not thread-safe if two threads call this function at the same time: 
+// two concurrent calls may pass the init_done check and overwrite the state.
 
-//AZZERA LA STRUTTURA EmergencyNode_t passata (buffer e contatore locale).
-int8_t EmergencyNode_init(EmergencyNode_t* const restrict p_self) //p_self puntatore al nodo iniziale
+//RESETS THE PASSED EmergencyNode_t STRUCTURE (buffer and local counter).
+int8_t EmergencyNode_init(EmergencyNode_t* const restrict p_self) //p_self pointer to the initial node
 {
-  memset(p_self, 0, sizeof(*p_self)); //riempie un’area di memoria con uno specifico valore.
+  memset(p_self, 0, sizeof(*p_self)); //fills a memory area with a specific value.
   return 0;
 }
 
-// AZIONA EMERGENZA
+// RAISES AN EMERGENCY
 int8_t EmergencyNode_raise(EmergencyNode_t* const restrict p_self, const uint8_t exeception)
-{ //Calcola quale byte e quale bit della bitmap corrispondono al exeception
-  const uint8_t exception_byte = exeception/8;  //in quale dei 8 byte si trova il bit
-  const uint8_t exception_bit = exeception % 8; //in quale dei 8 byte si trova il bit
+{ //Calculates which byte and which bit in the bitmap correspond to the exeception
+  const uint8_t exception_byte = exeception/8;  //in which of the 8 bytes the bit is
+  const uint8_t exception_bit = exeception % 8; //in which bit position within the byte
 
-  if (exeception >= NUM_EMERGENCY_BUFFER*8) //Se exeception fuori range → -1.
+  if (exeception >= NUM_EMERGENCY_BUFFER*8) //If exeception is out of range → -1.
   {
     return -1;
   }
 
-  const uint8_t old_emergency_bit = (p_self->emergency_buffer[exception_byte] >> exception_bit) & 0x01; //Legge il bit old; poi imposta il bit nella bitmap
-  p_self->emergency_buffer[exception_byte] |= 1 << exception_bit; //	Operazione bitwise OR per accendere il bit corrispondente all’emergenza.
+  const uint8_t old_emergency_bit = (p_self->emergency_buffer[exception_byte] >> exception_bit) & 0x01; //Reads the old bit; then sets the new bit in the bitmap
+  p_self->emergency_buffer[exception_byte] |= 1 << exception_bit; //	Bitwise OR operation to turn on the bit corresponding to the emergency.
 
-  if (!old_emergency_bit) //Se il bit non era già settato:
+  if (!old_emergency_bit) //If the bit was not already set:
   {
-    if(!p_self->emergency_counter) { //il nodo non aveva altre emergenze
-      _increase_global_emergency_counter(); //per aumentare il contatore globale 
+    if(!p_self->emergency_counter) { //the node had no other emergencies
+      _increase_global_emergency_counter(); //to increase the global counter 
     }
     p_self->emergency_counter++; 
   }
 
-  _hw_raise_emergency(); //accende il led (con lock)
+  _hw_raise_emergency(); //turns on the LED (with lock)
 
   return 0;
 }
 
-// DISATTIVA EMERGENZA
+// SOLVES AN EMERGENCY
 int8_t EmergencyNode_solve(EmergencyNode_t* const restrict p_self, const uint8_t exeception)
 {
   const uint8_t exception_byte = exeception/8;
   const uint8_t exception_bit = exeception % 8;
 
   if (exeception >= NUM_EMERGENCY_BUFFER * 8)
-  { //se l'eccezione è fuori dal buffer --> -1
+  { //if the exception is outside the buffer --> -1
     return -1;
   }
 
   if (p_self->emergency_buffer[exception_byte] &  (1 << exception_bit)) 
-  { //Controlla se il bit è settato; se sì: lo resetta
-    p_self->emergency_buffer[exception_byte] ^= (1 << exception_bit); // risolve l'em
-    p_self->emergency_counter--; //decrementa il contatore locale,
+  { //Checks if the bit is set; if yes: clears it
+    p_self->emergency_buffer[exception_byte] ^= (1 << exception_bit); //resolves the emergency
+    p_self->emergency_counter--; //decrements the local counter,
     if (!p_self->emergency_counter)
-    { //se non ha più emergenze
+    { //if it has no more active emergencies
       _solved_module_exception_state();
     }
   }
@@ -146,34 +146,34 @@ int8_t EmergencyNode_solve(EmergencyNode_t* const restrict p_self, const uint8_t
   return 0;
 }
 
-//VERIFICA SE CI SONO EMERGENZE
+//CHECKS IF THERE ARE ACTIVE EMERGENCIES
 int8_t EmergencyNode_is_emergency_state(const EmergencyNode_t* const restrict p_self)
-{ //Ritorna non-zero se questo nodo ha emergenze o se il contatore globale > 0 (il che significa che qualche nodo ha emergenza).
+{ //Returns non-zero if this node has emergencies or if the global counter > 0 (which means some node has an active emergency).
   return p_self->emergency_counter || read_globla_emergency_couner();
-  // 0 → nessuna emergenza nel nodo e nessun nodo ha emergenze
-	// 1 (o non-zero) → almeno un’emergenza attiva, locale o in un altro nodo
+  // 0 → no emergency in this node and no node has active emergencies
+	// 1 (or non-zero) → at least one active emergency, local or in another node
 }
 
-//ELIMINA NODO
+//DESTROYS NODE
 int8_t EmergencyNode_destroy(EmergencyNode_t* const restrict p_self)
-{ //Se il nodo ha ancora emergenze attive
+{ //If the node still has active emergencies
   if (p_self->emergency_counter)
   {
-    _solved_module_exception_state(); //per decrementare il contatore globale
+    _solved_module_exception_state(); //to decrement the global counter
   }
 
-  memset(p_self, 0, sizeof(*p_self)); //azzera la struttura
+  memset(p_self, 0, sizeof(*p_self)); //resets the structure
   return 0;
 }
 
 
 /*
-Non protetto (rischio di race):
-	•	accesso e modifica a strutture per nodo (p_self->emergency_buffer e p_self->emergency_counter) non sono protetti: quindi se due thread diversi manipolano lo stesso EmergencyNode_t contemporaneamente, si generano race condition (letture/scritture simultanee).
-	•	EmergencyNode_class_init non è atomicamente protetta: due thread che la chiamano insieme possono creare stato inconsistente.
-	•	EXCEPTION_COUNTER.lock potrebbe non essere inizializzato correttamente: se non inizializzato, atomic_flag_test_and_set ha comportamento indefinito.
+Not protected (race risk):
+	•	Access and modification to per-node structures (p_self->emergency_buffer and p_self->emergency_counter) are not protected: therefore, if two different threads manipulate the same EmergencyNode_t simultaneously, race conditions occur (simultaneous reads/writes).
+	•	EmergencyNode_class_init is not atomically protected: two threads calling it together can create inconsistent state.
+	•	EXCEPTION_COUNTER.lock might not be properly initialized: if uninitialized, atomic_flag_test_and_set has undefined behavior.
 
-Conclusione: il modulo è parzialmente thread-safe — la parte globale è protetta (se il lock è inizializzato), ma le strutture locali non lo sono. Per essere completamente thread-safe bisogna:
-	•	Proteggere anche le operazioni su EmergencyNode_t (per esempio con mutex per nodo, o usare atomic per emergency_counter e operazioni di bit manipolazione atomiche).
-	•	Garantire l’inizializzazione corretta del atomic_flag.
+Conclusion: the module is partially thread-safe — the global part is protected (if the lock is initialized), but the local structures are not. To be fully thread-safe you should:
+	•	Also protect operations on EmergencyNode_t (for example with a per-node mutex, or by using atomic operations for emergency_counter and bit manipulation).
+	•	Ensure correct initialization of the atomic_flag.
 */

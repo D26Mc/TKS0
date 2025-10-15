@@ -2,7 +2,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include "../emergency_module.h"
-#include "../emergency_module.c" // (direct include for testing internals)
+#include "../emergency_module.c"
 
 // === BASIC TESTS ===
 
@@ -10,8 +10,8 @@ void test_basic_init(void) {
     // Test that a node initializes correctly.
     EmergencyNode_class_init(); // Initialize the global module
     EmergencyNode_t node;
-    assert(EmergencyNode_init(&node) == 0); // Node init should succeed
-    assert(node.emergency_counter == 0);    // Counter must start at 0
+    assert(EmergencyNode_init(&node) == 0);
+    assert(node.emergency_counter == 0);
     for (int i = 0; i < NUM_EMERGENCY_BUFFER; ++i)
         assert(node.emergency_buffer[i] == 0); // All buffer bytes cleared
 }

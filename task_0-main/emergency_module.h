@@ -1,38 +1,38 @@
-#ifndef __EMERGENCY_MODULE__ //header guard: evita che il file venga incluso più volte dallo stesso sorgente 
+#ifndef __EMERGENCY_MODULE__ //header guard: prevents this file from being included multiple times in the same source
 #define __EMERGENCY_MODULE__
 
 #include <stdint.h>
 
-#define NUM_EMERGENCY_BUFFER 8 //Definisce la dimensione dell’array emergency_buffer.
-// ogni nodo può avere 64 emergenze
+#define NUM_EMERGENCY_BUFFER 8 //Defines the size of the emergency_buffer array.
+// each node can have 64 emergencies
 
-// rappresenta un nodo di emergenza indipendente, che può essere gestito separatamente dagli altri nodi.
+// represents an independent emergency node, which can be managed separately from other nodes.
 typedef struct { 
-  uint8_t emergency_buffer[NUM_EMERGENCY_BUFFER]; //bitmap di 64 bit
-  uint32_t emergency_counter; //contatore delle emergenze attive in questo nodo.
-}EmergencyNode_t; //nodo di emergenza indipendente
+  uint8_t emergency_buffer[NUM_EMERGENCY_BUFFER]; //64-bit bitmap
+  uint32_t emergency_counter; //counter of active emergencies in this node.
+}EmergencyNode_t; //independent emergency node
 
 int8_t EmergencyNode_class_init(void); 
-//Inizializza le variabili globali del modulo 
+//Initializes the module’s global variables
 
 int8_t
 EmergencyNode_init(EmergencyNode_t* const restrict)__attribute__((__nonnull__(1)));
-//Azzera tutti i bit del buffer e il contatore locale. Nodo pronto a ricevere emergenze.
+//Clears all bits in the buffer and the local counter. Node ready to receive emergencies.
 
 int8_t
 EmergencyNode_raise(EmergencyNode_t* const restrict, const uint8_t exeception)__attribute__((__nonnull__(1)));
-//Imposta il bit corrispondente nell’emergency_buffer. Aggiorna il contatore locale e, se necessario, quello globale. Accende il LED globale.
+//Sets the corresponding bit in the emergency_buffer. Updates the local counter and, if needed, the global one. Turns on the global LED.
 
 int8_t
 EmergencyNode_solve(EmergencyNode_t* const restrict, const uint8_t exeception)__attribute__((__nonnull__(1)));
-//Resetta il bit corrispondente nel buffer. Decrementa il contatore locale.
+//Resets the corresponding bit in the buffer. Decrements the local counter.
 
 int8_t
 EmergencyNode_is_emergency_state(const EmergencyNode_t* const restrict) __attribute__((__nonnull__(1)));
-//verifica se ha emergenze attive
+//Checks whether there are active emergencies
 
 int8_t
 EmergencyNode_destroy(EmergencyNode_t* const restrict)__attribute__((__nonnull__(1)));
-//elimina il nodo
+//Deletes the node
 
 #endif // !__EMERGENCY_MODULE__

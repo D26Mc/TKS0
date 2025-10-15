@@ -173,7 +173,4 @@ Not protected (race risk):
 	•	EmergencyNode_class_init is not atomically protected: two threads calling it together can create inconsistent state.
 	•	EXCEPTION_COUNTER.lock might not be properly initialized: if uninitialized, atomic_flag_test_and_set has undefined behavior.
 
-Conclusion: the module is partially thread-safe — the global part is protected (if the lock is initialized), but the local structures are not. To be fully thread-safe you should:
-	•	Also protect operations on EmergencyNode_t (for example with a per-node mutex, or by using atomic operations for emergency_counter and bit manipulation).
-	•	Ensure correct initialization of the atomic_flag.
 */

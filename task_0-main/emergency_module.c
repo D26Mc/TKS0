@@ -5,7 +5,7 @@
 
 //private
 //GLOBAL LED (only one)
-typedef atomic_ushort gpio; //This line creates a type alias 
+typedef atomic_ushort gpio; //creates a type alias 
 //represents an atomic variable based on an unsigned short.
 gpio emergency_led; //1 = on, 0 = off.
 
@@ -13,8 +13,8 @@ gpio emergency_led; //1 = on, 0 = off.
 
 
 static struct{
-  atomic_flag lock; //serves as a minimal synchronization mechanism, also called spinlock. 
-  // can be 0=free, 1=busy
+  atomic_flag lock; //serves as a minimal synchronization mechanism.
+  //0=free, 1=busy
   uint8_t excepion_counter; //counts how many entities (nodes) have active emergencies
   uint8_t init_done:1; //1-bit flag that indicates if the module has been initialized.
 }EXCEPTION_COUNTER; //global module state

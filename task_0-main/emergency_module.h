@@ -1,38 +1,96 @@
-#ifndef __EMERGENCY_MODULE__ //header guard: prevents this file from being included multiple times in the same source
-#define __EMERGENCY_MODULE__
+#include <assert.h>
+#include <pthread.h>
+#include <stdio.h>
+#include "../emergency_module.h" // Include only the public interface
 
-#include <stdint.h>
+// === BASIC TESTS ===
 
-#define NUM_EMERGENCY_BUFFER 8 //Defines the size of the emergency_buffer array.
-// each node can have 64 emergencies
+// Test initialization of a single emergency node
+void test_basic_init(void) {
+    EmergencyNode_class_init(); // Initialize the module
+    EmergencyNode_t node;
+    assert(EmergencyNode_init(&node) == 0);
+    assert(node.emergency_counter == 0);
 
-// represents an independent emergency node, which can be managed separately from other nodes.
-typedef struct { 
-  uint8_t emergency_buffer[NUM_EMERGENCY_BUFFER]; //64-bit bitmap
-  uint32_t emergency_counter; //counter of active emergencies in this node.
-}EmergencyNode_t; //independent emergency node
+    for (int i = 0; i < NUM_EMERGENCY_BUFFER; ++i) {
+        assert(node.emergency_buffer[i] == 0); // Buffer should start empty
+    }
+}
 
-int8_t EmergencyNode_class_init(void); 
-//Initializes the module’s global variables
+// Test raising and solving emergencies
+void test_raise_and_solve(void) {
+    EmergencyNode_class_init();
+    EmergencyNode_t node;
+    EmergencyNode_init(&node);
 
-int8_t
-EmergencyNode_init(EmergencyNode_t* const restrict)__attribute__((__nonnull__(1)));
-//Clears all bits in the buffer and the local counter. Node ready to receive emergencies.
+    assert(EmergencyNode_raise(&node, 3) == 0); // Raise emergency ID 3
+    assert(node.emergency_counter == 1);
+    assert(EmergencyNode_is_emergency_state(&node)); // Check if emergency is active
 
-int8_t
-EmergencyNode_raise(EmergencyNode_t* const restrict, const uint8_t exeception)__attribute__((__nonnull__(1)));
-//Sets the corresponding bit in the emergency_buffer. Updates the local counter and, if needed, the global one. Turns on the global LED.
+    assert(EmergencyNode_solve(&node, 3) == 0); // Solve the emergency
+    assert(node.emergency_counter == 0);
+    assert(EmergencyNode_is_emergency_state(&node) == 0); // No emergency now
+}
 
-int8_t
-EmergencyNode_solve(EmergencyNode_t* const restrict, const uint8_t exeception)__attribute__((__nonnull__(1)));
-//Resets the corresponding bit in the buffer. Decrements the local counter.
+// Test handling of invalid emergency IDs
+void test_out_of_range(void) {
+    EmergencyNode_t node;
+    EmergencyNode_init(&node);
 
-int8_t
-EmergencyNode_is_emergency_state(const EmergencyNode_t* const restrict) __attribute__((__nonnull__(1)));
-//Checks whether there are active emergencies
+    assert(EmergencyNode_raise(&node, 100) == -1); // Out of range
+    assert(EmergencyNode_solve(&node, 100) == -1); // Out of range
+}
 
-int8_t
-EmergencyNode_destroy(EmergencyNode_t* const restrict)__attribute__((__nonnull__(1)));
-//Deletes the node
+// === SIMPLE MULTITHREAD TEST ===
+#define NUM_THREADS 4
+#define RAISES_PER_THREAD 1000
 
-#endif // !__EMERGENCY_MODULE__
+void* raise_thread(void* arg) {
+    EmergencyNode_t* node = (EmergencyNode_t*)arg;
+    for (int i = 0; i < RAISES_PER_THREAD; ++i) {
+        EmergencyNode_raise(node, i % (NUM_EMERGENCY_BUFFER * 8));
+    }
+    return NULL;
+}
+
+void test_multithread_same_node(void) {
+    EmergencyNode_class_init();
+    EmergencyNode_t node;
+    EmergencyNode_init(&node);
+
+    pthread_t threads[NUM_THREADS];
+
+    // Create threads
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        pthread_create(&threads[i], NULL, raise_thread, &node);
+    }
+
+    // Wait for threads to finish
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        pthread_join(threads[i], NULL);
+    }
+
+    printf("Multithread test finished. Emergencies in node: %u\n", node.emergency_counter);
+}
+
+// === MAIN FUNCTION ===
+int main(void) {
+    printf("Running test_basic_init...\n");
+    test_basic_init();
+    printf("Passed test_basic_init!\n\n");
+
+    printf("Running test_raise_and_solve...\n");
+    test_raise_and_solve();
+    printf("Passed test_raise_and_solve!\n\n");
+
+    printf("Running test_out_of_range...\n");
+    test_out_of_range();
+    printf("Passed test_out_of_range!\n\n");
+
+    printf("Running multithread test...\n");
+    test_multithread_same_node();
+    printf("Multithread test completed!\n\n");
+
+    printf("All tests completed successfully!\n");
+    return 0;
+}
